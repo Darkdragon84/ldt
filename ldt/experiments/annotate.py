@@ -25,6 +25,8 @@ Todo:
     * multicore processing
 
 """
+from functools import partial
+
 import ldt
 
 import os
@@ -43,6 +45,7 @@ from p_tqdm import p_map
 from vecto.utils.data import load_json
 
 from ldt.experiments.metadata import Experiment
+from ldt.helpers.multiprocessing_utilities import input_output_worker, pmap
 from ldt.load_config import config
 from ldt.dicts.normalize import Normalization
 from ldt.dicts.derivation.meta import DerivationAnalyzer
@@ -236,6 +239,7 @@ class AnnotateVectorNeighborhoods(Experiment):
         self.metadata["binary_vars"] = self.binary_vars
 
         self.ldt_analyzer = ldt_analyzer
+        self.prior_data = None
 
         # global metadata
         # metadata = self.metadata
@@ -254,15 +258,15 @@ class AnnotateVectorNeighborhoods(Experiment):
 
     def _process(self, embeddings_path):
 
-        global prior_data
-        prior_data = collect_prior_data(self.metadata["output_dir"])
-        # print("collected prior data", len(prior_data))
+        # global prior_data
+        self.prior_data = collect_prior_data(self.metadata["output_dir"])
+        print("collected prior data", len(self.prior_data))
 
-        global metadata
-        metadata = self.metadata
+        # global metadata
+        # metadata = self.metadata
 
-        global global_analyzer
-        global_analyzer = self.ldt_analyzer
+        # global global_analyzer
+        # global_analyzer = self.ldt_analyzer
 
         filename = self.get_fname_for_embedding(embeddings_path)
         neighbor_file_path = os.path.join(self.output_dir.replace(
@@ -275,17 +279,18 @@ class AnnotateVectorNeighborhoods(Experiment):
         self.metadata["total_pairs"] += len(input_df)
         dicts = input_df.to_dict(orient="records")
 
-        if metadata["multiprocessing"] == 1:
+        if self.metadata["multiprocessing"] == 1:
             print("\nMultiprocessing: 1 core")
             newdicts = []
             for d in tqdm(dicts):
-                newdicts.append(_process_one_dict(d))
+                newdicts.append(_process_one_dict(d, prior_data=self.prior_data,
+                                                  metadata=self.metadata, analyzer=self.ldt_analyzer))
                 # # newdicts.append(self._process_one_dict_meth(d))
                 dicts = newdicts
             # dicts = [_process_one_dict(x) for x in dicts]
             # self.save_results(dicts)
         else:
-            print("\nMultiprocessing:", metadata["multiprocessing"], "cores")
+            print("\nMultiprocessing:", self.metadata["multiprocessing"], "cores")
         #python multiprocessing library
             # pool = Pool(metadata["multiprocessing"], initializer=initializer(global_analyzer))
             # dicts = pool.map(_process_one_dict, dicts)
@@ -300,7 +305,14 @@ class AnnotateVectorNeighborhoods(Experiment):
             # pool = ProcessingPool(nodes=metadata["multiprocessing"])
             # dicts = pool.map(self._process_one_dict_meth, dicts)
 
-            dicts = p_map(_process_one_dict, dicts, num_cpus=metadata["multiprocessing"])
+            processor = partial(input_output_worker, partial(_process_one_dict,
+                                                             prior_data=self.prior_data,
+                                                             metadata=self.metadata,
+                                                             analyzer=self.ldt_analyzer))
+            dicts = pmap(input_data=dicts, n_workers=self.metadata["multiprocessing"],
+                         data_processor_worker=processor,
+                         default={})
+            # dicts = p_map(_process_one_dict, dicts, num_cpus=metadata["multiprocessing"])
             # self.save_results(dicts)
             # pool = MyPool(metadata["multiprocessing"])
             # dicts = pool.map(_process_one_dict, dicts)
@@ -403,43 +415,6 @@ class AnnotateVectorNeighborhoods(Experiment):
         distr_dict = None
         return dicts
 
-    def _process_one_dict_meth(self, col_dict):
-        """Helper function that for performing the annotation in a
-        multiprocessing-friendly way. Relies on global analyzer, metadata and
-        prior_data objects."""
-        # col_dict = col_dict[0]
-        print(col_dict)
-        neighbor = col_dict["Neighbor"]
-        target = col_dict["Target"]
-    #    print(target + ":" + neighbor in prior_data)
-        if target + ":" + neighbor in prior_data:
-    #        print("using prior results")
-            # print(prior_data[target + ":" + neighbor])
-            col_dict.update(prior_data[target + ":" + neighbor])
-        else:
-            # relations = self.analyzer.analyze(target, neighbor, silent=True,
-            #                                   debugging=metadata["debugging"])
-            relations = global_analyzer.analyze(target, neighbor,
-                                                silent=True, debugging=metadata["debugging"])
-            if relations:
-                if not "Missing" in relations:
-                    to_check_continuous = metadata["continuous_vars"]
-                    to_check_binary = metadata["binary_vars"]
-                else:
-                    to_check_binary = [x for x in ["NonCooccurring", "GDeps"] if
-                                       x in metadata["ld_scores"]]
-                    to_check_continuous = [x for x in
-                                           ["TargetFrequency", "NeighborFrequency"]
-                                           if x in metadata["ld_scores"]]
-                    metadata["missed_pairs"].append(tuple([target, neighbor]))
-                for i in to_check_continuous:
-                    if i in relations:
-                        col_dict[i] = relations[i]
-                for i in to_check_binary:
-                    col_dict[i] = i in relations
-        print("processed", col_dict)
-        save_result(col_dict)
-        return col_dict
 
 def collect_targets_and_neighbors(dicts):
 
@@ -496,52 +471,8 @@ def collect_prior_data(output_dir):
           output_dir)
     return prior_res
 
-def init_analyzer(path, analyzer=None):
 
-    """Helper for initializing the RelationsInPair instance if one is not
-    provided, and updating it with the wordlist if one is provided"""
-
-    wordlist = collect_targets_and_neighbors(path)
-    print("\nLoading filtered distributional resources. This takes a while "
-          "for a large experiment.")
-
-    if analyzer:
-        # todo move this to RelationsInPair
-        if "GDeps" in metadata["ld_scores"] and config["corpus"]:
-            analyzer._distr_dict._reload_resource(resource="gdeps",
-                                                      wordlist=wordlist)
-            analyzer._gdeps = True
-        if "NonCooccurring" in metadata["ld_scores"] and config["corpus"]:
-            analyzer._distr_dict._reload_resource(resource="cooccurrence",
-                wordlist=wordlist)
-            analyzer._cooccurrence = True
-
-        return analyzer
-    else:
-        # setting up default ldt resources to be used
-        normalizer = Normalization(language="English",
-                                   order=("wordnet", "custom"),
-                                   lowercasing=True)
-        derivation = DerivationAnalyzer()
-        lex_dict = MetaDictionary()
-
-        analyzer = RelationsInPair(normalizer=normalizer,
-                                   derivation_dict=derivation,
-                                   lex_dict=lex_dict,
-                                   gdeps="GDeps" in metadata["ld_scores"],
-                                   cooccurrence="NonCooccurring" in metadata["ld_scores"],
-                                   wordlist=wordlist)
-        return analyzer
-
-class initializer():
-    def __init__(self, global_analyzer):
-        self.analyzer = global_analyzer
-
-    def __call__(self):
-        global global_analyzer
-        global_analyzer = self.analyzer
-
-def _process_one_dict(col_dict):
+def _process_one_dict(col_dict, prior_data, metadata, analyzer):
     """Helper function that for performing the annotation in a
     multiprocessing-friendly way. Relies on global analyzer, metadata and
     prior_data objects."""
@@ -553,8 +484,8 @@ def _process_one_dict(col_dict):
         # print(prior_data[target + ":" + neighbor])
         col_dict.update(prior_data[target + ":" + neighbor])
     else:
-        relations = global_analyzer.analyze(target, neighbor, silent=True,
-                                            debugging=metadata["debugging"])
+        relations = analyzer.analyze(target, neighbor, silent=True,
+                                     debugging=metadata["debugging"])
         if relations:
             if not "Missing" in relations:
                 to_check_continuous = metadata["continuous_vars"]
@@ -571,10 +502,11 @@ def _process_one_dict(col_dict):
                     col_dict[i] = relations[i]
             for i in to_check_binary:
                 col_dict[i] = i in relations
-    save_result(col_dict)
+    save_result(col_dict, metadata)
     return col_dict
 
-def save_result(dicts, overwrite=False):
+
+def save_result(dicts, metadata, overwrite=False):
     if isinstance(dicts, dict):
         dicts = [dicts]
     output_df = pd.DataFrame(dicts,
@@ -601,12 +533,12 @@ if __name__ == '__main__':
             language="English", order=("wordnet", "wiktionary"))
 
     # global analyzer
-    analyzer = ldt.relations.pair.RelationsInPair(
+    ldt_analyzer = ldt.relations.pair.RelationsInPair(
             normalizer=normalizer, derivation_dict=derivation,
             lex_dict=lex_dict)
     annotation = AnnotateVectorNeighborhoods(experiment_name="testing",
                                              overwrite=True,
-                                             ldt_analyzer=analyzer,
+                                             ldt_analyzer=ldt_analyzer,
                                              ld_scores="all",
                                              multiprocessing=4, debugging=True)
     annotation.get_results()
