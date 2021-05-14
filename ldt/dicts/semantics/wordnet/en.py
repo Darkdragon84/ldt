@@ -123,7 +123,7 @@ class WordNet(BaseWordNet, DictionaryWithDefinitions):
         res = list(set(res))
         return res
 
-    @timeout_decorator.timeout(10, use_signals=False)
+    # @timeout_decorator.timeout(10, use_signals=False)
     @functools.lru_cache(maxsize=config["cache_size"])
     def _get_nyms(self, word, relation, synonyms=True, depth=1):
         """ Single interface to all WordNet relations computed with
