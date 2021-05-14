@@ -18,7 +18,7 @@ from nltk.corpus import wordnet as wn
 from ldt.load_config import config
 
 
-@timeout_decorator.timeout(10, use_signals=False)
+# @timeout_decorator.timeout(10, use_signals=False)
 @functools.lru_cache(maxsize=config["cache_size"])
 def _get_wn_paths(word1, word2):
     """Getting the minimal path similarity between a pair of words in wordnet
