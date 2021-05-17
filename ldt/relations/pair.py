@@ -28,11 +28,14 @@ from ldt.dicts.dictionary import Dictionary
 from ldt.dicts.normalize import Normalization
 from ldt.dicts.derivation.meta import DerivationAnalyzer
 from ldt.dicts.semantics.metadictionary import MetaDictionary
+from ldt.helpers.config_logger import setup_logger
 from ldt.relations.word import Word
 from ldt.relations.ontology_path.ontodict import OntoDict
 from ldt.load_config import config
 from ldt.dicts.resources import AssociationDictionary
 from ldt.relations.distribution import DistributionDict
+
+module_logger = setup_logger(__name__, level=config["experiments"]["logging"]["level"])
 
 class RelationsInPair(Dictionary):
     """This class implements analyzer for all possible relation types in a word
@@ -65,10 +68,13 @@ class RelationsInPair(Dictionary):
     def __init__(self, language=config["default_language"],
                  lowercasing=config["lowercasing"],
                  derivation_dict=None, normalizer=None,
-                 lex_dict=None, ontodict=None, association_dict=None):
+                 lex_dict=None, ontodict=None, association_dict=None,
+                 logger=module_logger):
 
         super(RelationsInPair, self).__init__(language=language,
                                               lowercasing=lowercasing)
+
+        self.logger = logger
         if not ontodict:
             self.OntoDict = OntoDict(language=language)
         else:
@@ -140,9 +146,9 @@ class RelationsInPair(Dictionary):
                       self._lex_dict)
         neighbor = Word(neighbor, self._derivation_dict, self._normalizer,
                         self._lex_dict)
-        if not silent:
-            print(target.pp_info())
-            print(neighbor.pp_info())
+        self.logger.debug(f"analyzing \"{target.original_spelling}\":\"{neighbor.original_spelling}\"")
+        self.logger.debug(target.pp_info())
+        self.logger.debug(neighbor.pp_info())
         res = {}
         if neighbor.info["Missing"]:
             res["Missing"] = True

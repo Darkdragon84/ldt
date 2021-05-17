@@ -76,6 +76,7 @@ from ldt.load_config import config
 # class MyPool(multiprocessing.pool.Pool):
 #     Process = NoDaemonProcess
 
+module_logger = logging.getLogger(__name__)
 
 class AnnotateVectorNeighborhoods(Experiment):
     """This class provides a simple interface for annotating pre-computed top_n
@@ -264,7 +265,6 @@ class AnnotateVectorNeighborhoods(Experiment):
         # global prior_data
         self.prior_data = collect_prior_data(self.metadata["output_dir"], logger=self.logger)
         # self.logger.info(f"collected prior data {len(self.prior_data)}")
-        # print("collected prior data", len(self.prior_data))
 
         # global metadata
         # metadata = self.metadata
@@ -276,7 +276,6 @@ class AnnotateVectorNeighborhoods(Experiment):
         neighbor_file_path = os.path.join(self.output_dir.replace(
             "neighbors_annotated", "neighbors"), filename+".tsv")
         self.logger.info(f"Annotating {neighbor_file_path}")
-        # print("\nAnnotating "+neighbor_file_path)
         self.metadata["out_path"] = os.path.join(self.output_dir,
                                                  filename+".tsv")
 
@@ -286,7 +285,6 @@ class AnnotateVectorNeighborhoods(Experiment):
 
         if self.metadata["multiprocessing"] == 1:
             self.logger.info("Multiprocessing: 1 core")
-            # print("\nMultiprocessing: 1 core")
             newdicts = []
             for d in tqdm(dicts):
                 newdicts.append(_process_one_dict(d, prior_data=self.prior_data,
@@ -481,12 +479,13 @@ def collect_prior_data(output_dir, logger: logging.Logger = None):
     return prior_res
 
 
-def _process_one_dict(col_dict, prior_data, metadata, analyzer, lock=None):
+def _process_one_dict(col_dict, prior_data, metadata, analyzer, lock=None, logger=module_logger):
     """Helper function that for performing the annotation in a
     multiprocessing-friendly way. Relies on global analyzer, metadata and
     prior_data objects."""
     neighbor = col_dict["Neighbor"]
     target = col_dict["Target"]
+
 #    print(target + ":" + neighbor in prior_data)
     if target + ":" + neighbor in prior_data:
 #        print("using prior results")

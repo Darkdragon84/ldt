@@ -102,11 +102,11 @@ class Word(object):
             self._lex_dict = MetaDictionary()
         else:
             self._lex_dict = lex_dict
-        self.analyze(self.original_spelling)
+        self.info = {}
+        self.analyze()
 
     @functools.lru_cache(maxsize=config["cache_size"])
-    def analyze(self, word):
-        self.info = {}
+    def analyze(self):
         self._normalize()
 
         lookup = True
@@ -242,32 +242,39 @@ class Word(object):
     def pp_info(self):
         """Pretty printing all the attributes of the word object."""
 
+        info = ""
+
         def print_rel(i, dictionary):
             """Printing helper"""
-            if i in dictionary:
+            loc_info = ""
+            if i in dictionary and dictionary[i]:
                 if isinstance(dictionary[i], frozenset):
-                    print(i, ": ", ', '.join(dictionary[i]))
+                    loc_info += f"{i}: {', '.join(dictionary[i])}"
                 else:
-                    print(i, ": ", dictionary[i])
+                    loc_info += f"{i}: {dictionary[i]}"
+            return loc_info
 
-        print("\n\n====== "+self.info["OriginalForm"].upper()+" ======")
+        def concat_rels(dictionary, items):
+            concat_info = "; ".join([
+                x for x in [
+                    print_rel(i, dictionary)
+                    for i in items
+                ] if x]
+            )
+            return "\n" + concat_info if concat_info else ""
 
-        print("\n====== MORPHOLOGICAL INFO ======")
-        for i in ["OriginalForm", "POS", "IsLemma", "Lemmas"]:
-            print_rel(i, self.info)
-        print("\n====== DERIVATIONAL INFO ======")
-        for i in ["Stems", "Suffixes", "Prefixes", "OtherDerivation",
-                  "RelatedWords"]:
-            print_rel(i, self.info)
-        print("\n====== SEMANTIC INFO ======")
-        for i in ["Synonyms", "Antonyms", "Meronyms", "Hyponyms",
-                  "Hypernyms", "Other"]:
-            print_rel(i, self.info)
-        print("\n====== EXTRA WORD CLASSES ======")
-        for i in ["ProperNouns", "Noise", "Numbers", "URLs", "Hashtags", "Filenames", \
-    "ForeignWords", "Misspellings", "Missing"]:
-            print_rel(i, self.info)
-        print("\n")
+        info += "\n====== "+self.info["OriginalForm"].upper()+" ======"
+
+        info += "\n====== MORPHOLOGICAL INFO ======"
+        info += concat_rels(self.info, ["OriginalForm", "POS", "IsLemma", "Lemmas"])
+        info += "\n====== DERIVATIONAL INFO ======"
+        info += concat_rels(self.info, ["Stems", "Suffixes", "Prefixes", "OtherDerivation", "RelatedWords"])
+        info += "\n====== SEMANTIC INFO ======"
+        info += concat_rels(self.info, ["Synonyms", "Antonyms", "Meronyms", "Hyponyms", "Hypernyms", "Other"])
+        info += "\n====== EXTRA WORD CLASSES ======"
+        info += concat_rels(self.info, ["ProperNouns", "Noise", "Numbers", "URLs", "Hashtags", "Filenames",
+                                        "ForeignWords", "Misspellings", "Missing"])
+        return info
 
 # if __name__ == '__main__':
 #     cat = Word("cat")
