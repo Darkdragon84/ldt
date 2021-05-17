@@ -143,12 +143,13 @@ class RelationsInPair(Dictionary):
             could be over-estimating it.
         """
 
+        self.logger.debug(f"analyzing \"{target}\":\"{neighbor}\"")
         target = Word(target, self._derivation_dict, self._normalizer,
                       self._lex_dict)
+        self.logger.debug(target.pp_info())
+
         neighbor = Word(neighbor, self._derivation_dict, self._normalizer,
                         self._lex_dict)
-        self.logger.debug(f"analyzing \"{target.original_spelling}\":\"{neighbor.original_spelling}\"")
-        self.logger.debug(target.pp_info())
         self.logger.debug(neighbor.pp_info())
         res = {}
         if neighbor.info["Missing"]:

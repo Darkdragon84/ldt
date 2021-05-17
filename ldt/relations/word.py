@@ -62,6 +62,7 @@ import functools
 from ldt.dicts.normalize import Normalization as Normalizer
 from ldt.dicts.derivation.meta import DerivationAnalyzer
 from ldt.dicts.semantics.metadictionary import MetaDictionary
+from ldt.helpers.config_logger import setup_logger
 from ldt.load_config import config
 
 class Word(object):
@@ -86,6 +87,10 @@ class Word(object):
         #: str : the original spelling of a word
 
         self.original_spelling = original_spelling
+        self.logger = setup_logger(__name__,
+                                   level=config["experiments"]["logging"]["level"],
+                                   log_file_dir=config["experiments"]["logging"]["logdir"],
+                                   log_file_name=config["experiments"]["experiment_name"])
 
         #: obj : the ldt.dicts.normalize  dictionary object
         if not normalizer:
@@ -121,7 +126,7 @@ class Word(object):
 
     def _normalize(self):
         """Bringing in the information from the _normalizer class."""
-
+        self.logger.debug(f"Normalizing \"{self.original_spelling}\"")
         self.info["OriginalForm"] = self.original_spelling
 
         res = self._normalizer.normalize(self.original_spelling)
@@ -180,6 +185,7 @@ class Word(object):
             "prefixes":"Prefixes", "related_words":"RelatedWords",
             "other":"OtherDerivation"}
 
+        self.logger.debug(f"Analyzing derivations of \"{self.original_spelling}\"")
         if self.info["Lemmas"]:
             to_analyze = self.info["Lemmas"]
         else:
@@ -216,6 +222,7 @@ class Word(object):
         main_rels = ["Synonyms", "Antonyms", "Hypernyms", "Meronyms",
                      "Hyponyms"]
 
+        self.logger.debug(f"Getting lexicographic relations of \"{self.original_spelling}\"")
         for lemma in self.info["Lemmas"]:
             res = self._lex_dict.get_relations(lemma)
 
