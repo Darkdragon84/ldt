@@ -34,8 +34,6 @@ from ldt.load_config import config
 from ldt.experiments.metadata import Experiment
 
 
-module_logger = setup_logger(__name__, level=config["experiments"]["logging"]["level"])
-
 class VectorNeighborhoods(Experiment):
     """This class provides a simple interface for generating top_n vector
     neighborhoods for a given vocabulary sample, using vecto library.
@@ -85,7 +83,11 @@ class VectorNeighborhoods(Experiment):
         super(VectorNeighborhoods, self).__init__(
             experiment_name=experiment_name, extra_metadata=extra_metadata,
             overwrite=overwrite, embeddings=embeddings, output_dir=output_dir,
-            dataset=dataset, experiment_subfolder="neighbors", logger=module_logger)
+            dataset=dataset, experiment_subfolder="neighbors",
+            logger=setup_logger(__name__,
+                                level=config["experiments"]["logging"]["level"],
+                                log_file_dir=config["experiments"]["logging"]["logdir"],
+                                log_file_name=config["experiments"]["experiment_name"]))
 
         self.message = "Starting vector neighborhoods extraction." \
                        "\nIf your embeddings are not normalized, retrieving " \

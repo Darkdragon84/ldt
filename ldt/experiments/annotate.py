@@ -154,7 +154,10 @@ class AnnotateVectorNeighborhoods(Experiment):
             experiment_name=experiment_name, extra_metadata=extra_metadata,
             overwrite=overwrite, embeddings=None, output_dir=output_dir,
             dataset=None, experiment_subfolder="neighbors_annotated",
-            logger=setup_logger(__name__, level=config["experiments"]["logging"]["level"]))
+            logger=setup_logger(__name__,
+                                level=config["experiments"]["logging"]["level"],
+                                log_file_dir=config["experiments"]["logging"]["logdir"],
+                                log_file_name=config["experiments"]["experiment_name"]))
 
         self.metadata["task"] = "annotate_neighbors"
         self.metadata["uuid"] = str(uuid.uuid4())

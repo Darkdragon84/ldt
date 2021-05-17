@@ -4,7 +4,7 @@ from logging.config import dictConfig
 
 ROTATING_FILE_HANDLER = "logging.handlers.RotatingFileHandler"
 STREAM_HANDLER = "logging.StreamHandler"
-DEFAULT_LEVEL = logging.INFO
+DEFAULT_LEVEL = logging._levelToName[logging.INFO]
 
 FORMATTER_CONFIG = {
     "verbose": {
@@ -28,12 +28,14 @@ HANDLER_CONFIG = {
     ,}
 
 
-def setup_logger(logger_name: str, level=DEFAULT_LEVEL, log_file_dir: str = None, log_file_name: str = ""):
+def setup_logger(logger_name: str, level: str = DEFAULT_LEVEL, log_file_dir: str = None, log_file_name: str = ""):
     console_handler = HANDLER_CONFIG["console"]
+    level = logging._nameToLevel.get(level.upper(), DEFAULT_LEVEL)
     console_handler["level"] = level
 
     handlers_cfg = {"console": {**HANDLER_CONFIG["console"], "level": level}}
     if log_file_dir is not None:
+        os.makedirs(log_file_dir, exist_ok=True)
         prefix = log_file_name + "_" if log_file_name else ""
         handlers_cfg[f"file_{level}"] = {
             **HANDLER_CONFIG["file"],

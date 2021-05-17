@@ -75,7 +75,10 @@ class Experiment(metaclass=abc.ABCMeta):
             raise ValueError("Please specify experiment_name argument: a short "
                              "description of the experiment you're conducting.")
 
-        self.logger = logger if logger else setup_logger(__name__, config["experiments"]["logging"]["level"])
+        self.logger = logger if logger else setup_logger(__name__,
+                                                         level=config["experiments"]["logging"]["level"],
+                                                         log_file_dir=config["experiments"]["logging"]["logdir"],
+                                                         log_file_name=config["experiments"]["experiment_name"])
         self.output_dir = check_output(output_dir, experiment_subfolder,
                                        experiment_name)
         self.message = None

@@ -35,8 +35,6 @@ from ldt.load_config import config
 from ldt.dicts.resources import AssociationDictionary
 from ldt.relations.distribution import DistributionDict
 
-module_logger = setup_logger(__name__, level=config["experiments"]["logging"]["level"])
-
 class RelationsInPair(Dictionary):
     """This class implements analyzer for all possible relation types in a word
     pair.
@@ -69,7 +67,10 @@ class RelationsInPair(Dictionary):
                  lowercasing=config["lowercasing"],
                  derivation_dict=None, normalizer=None,
                  lex_dict=None, ontodict=None, association_dict=None,
-                 logger=module_logger):
+                 logger=setup_logger(__name__,
+                                     level=config["experiments"]["logging"]["level"],
+                                     log_file_dir=config["experiments"]["logging"]["logdir"],
+                                     log_file_name=config["experiments"]["experiment_name"])):
 
         super(RelationsInPair, self).__init__(language=language,
                                               lowercasing=lowercasing)

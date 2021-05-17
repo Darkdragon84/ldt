@@ -31,7 +31,6 @@ from ldt.experiments.metadata import Experiment
 from ldt.helpers.config_logger import setup_logger
 from ldt.load_config import config
 
-module_logger = setup_logger(__name__, level=config["experiments"]["logging"]["level"])
 
 class LDScoring(Experiment):
     """This class provides a simple interface for computing ld scores,
@@ -101,7 +100,11 @@ class LDScoring(Experiment):
         super(LDScoring, self).__init__(
             experiment_name=experiment_name, extra_metadata=extra_metadata,
             overwrite=overwrite, embeddings=None, output_dir=output_dir,
-            dataset=None, experiment_subfolder="analysis", logger=module_logger)
+            dataset=None, experiment_subfolder="analysis",
+            logger=setup_logger(__name__,
+                                level=config["experiments"]["logging"]["level"],
+                                log_file_dir=config["experiments"]["logging"]["logdir"],
+                                log_file_name=config["experiments"]["experiment_name"]))
 
         self.metadata["task"] = "ld_scores_analysis"
         self.metadata["uuid"] = str(uuid.uuid4())
