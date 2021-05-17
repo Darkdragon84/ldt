@@ -34,6 +34,7 @@ import uuid
 import pandas as pd
 import numpy as np
 from tqdm import tqdm
+import logging
 #import multiprocessing
 #import multiprocessing.pool
 # from billiard import
@@ -45,6 +46,7 @@ from p_tqdm import p_map
 from vecto.utils.data import load_json
 
 from ldt.experiments.metadata import Experiment
+from ldt.helpers.config_logger import setup_logger
 from ldt.helpers.multiprocessing_utilities import input_output_worker, pmap
 from ldt.load_config import config
 from ldt.dicts.normalize import Normalization
@@ -148,9 +150,10 @@ class AnnotateVectorNeighborhoods(Experiment):
         """
 
         super(AnnotateVectorNeighborhoods, self).__init__(
-            experiment_name=experiment_name, extra_metadata=extra_metadata, \
+            experiment_name=experiment_name, extra_metadata=extra_metadata,
             overwrite=overwrite, embeddings=None, output_dir=output_dir,
-            dataset=None, experiment_subfolder="neighbors_annotated")
+            dataset=None, experiment_subfolder="neighbors_annotated",
+            logger=setup_logger(__name__, level=config["experiments"]["logging"]["level"]))
 
         self.metadata["task"] = "annotate_neighbors"
         self.metadata["uuid"] = str(uuid.uuid4())
@@ -259,8 +262,9 @@ class AnnotateVectorNeighborhoods(Experiment):
     def _process(self, embeddings_path):
 
         # global prior_data
-        self.prior_data = collect_prior_data(self.metadata["output_dir"])
-        print("collected prior data", len(self.prior_data))
+        self.prior_data = collect_prior_data(self.metadata["output_dir"], logger=self.logger)
+        # self.logger.info(f"collected prior data {len(self.prior_data)}")
+        # print("collected prior data", len(self.prior_data))
 
         # global metadata
         # metadata = self.metadata
@@ -271,7 +275,8 @@ class AnnotateVectorNeighborhoods(Experiment):
         filename = self.get_fname_for_embedding(embeddings_path)
         neighbor_file_path = os.path.join(self.output_dir.replace(
             "neighbors_annotated", "neighbors"), filename+".tsv")
-        print("\nAnnotating "+neighbor_file_path)
+        self.logger.info(f"Annotating {neighbor_file_path}")
+        # print("\nAnnotating "+neighbor_file_path)
         self.metadata["out_path"] = os.path.join(self.output_dir,
                                                  filename+".tsv")
 
@@ -280,7 +285,8 @@ class AnnotateVectorNeighborhoods(Experiment):
         dicts = input_df.to_dict(orient="records")
 
         if self.metadata["multiprocessing"] == 1:
-            print("\nMultiprocessing: 1 core")
+            self.logger.info("Multiprocessing: 1 core")
+            # print("\nMultiprocessing: 1 core")
             newdicts = []
             for d in tqdm(dicts):
                 newdicts.append(_process_one_dict(d, prior_data=self.prior_data,
@@ -290,7 +296,8 @@ class AnnotateVectorNeighborhoods(Experiment):
             # dicts = [_process_one_dict(x) for x in dicts]
             # self.save_results(dicts)
         else:
-            print("\nMultiprocessing:", self.metadata["multiprocessing"], "cores")
+            self.logger.info(f"Multiprocessing: {self.metadata['multiprocessing']} cores")
+            # print("\nMultiprocessing:", self.metadata["multiprocessing"], "cores")
         #python multiprocessing library
             # pool = Pool(metadata["multiprocessing"], initializer=initializer(global_analyzer))
             # dicts = pool.map(_process_one_dict, dicts)
@@ -386,9 +393,8 @@ class AnnotateVectorNeighborhoods(Experiment):
             except KeyError:
                 pass
         self.save_results(res, overwrite=True)
-        print("\nAnnotation done:", self.metadata["out_path"])
-
-
+        self.logger.info(f"Annotation done: {self.metadata['out_path']}")
+        # print("\nAnnotation done:", self.metadata["out_path"])
 
 
     def add_distr_data(self, dicts):
@@ -396,7 +402,8 @@ class AnnotateVectorNeighborhoods(Experiment):
         scores = [x for x in distr_scores if x in self._ld_scores]
         if not scores:
             return dicts
-        print("\nLoading and adding distributional data. This could take a few minutes for a large dataset.")
+        self.logger.info("Loading and adding distributional data. This could take a few minutes for a large dataset.")
+        # print("\nLoading and adding distributional data. This could take a few minutes for a large dataset.")
         gdeps = "GDeps" in self._ld_scores
         cooccurrence = "NonCooccurring" in self._ld_scores
         if gdeps or cooccurrence:
@@ -441,14 +448,15 @@ def collect_targets_and_neighbors(dicts):
     return res
 
 
-
-def collect_prior_data(output_dir):
+# TODO make method of AnnotateVectorNeighborhoods
+def collect_prior_data(output_dir, logger: logging.Logger = None):
     """Helper for collecting all the previously processed data (useful in
     case a large experiment is interrupted in the middle, as many word pairs
     repeat across different embeddings).
 
     Args:
         output_dir (str): the path where the previous results have been saved.
+        logger:
 
     Returns:
          (dict): a dictionary with previously computed word relations,
@@ -467,12 +475,13 @@ def collect_prior_data(output_dir):
         dicts = input_df.to_dict(orient="records")
         for pair in dicts:
             prior_res[pair["Target"]+":"+pair["Neighbor"]] = pair
-    print("\nCollected", len(prior_res), "previously processed word pairs in",
-          output_dir)
+    logger.info(f"Collected {len(prior_res)} previously processed word pairs in {output_dir}")
+    # print("\nCollected", len(prior_res), "previously processed word pairs in",
+    #       output_dir)
     return prior_res
 
 
-def _process_one_dict(col_dict, prior_data, metadata, analyzer):
+def _process_one_dict(col_dict, prior_data, metadata, analyzer, lock=None):
     """Helper function that for performing the annotation in a
     multiprocessing-friendly way. Relies on global analyzer, metadata and
     prior_data objects."""
@@ -487,7 +496,7 @@ def _process_one_dict(col_dict, prior_data, metadata, analyzer):
         relations = analyzer.analyze(target, neighbor, silent=True,
                                      debugging=metadata["debugging"])
         if relations:
-            if not "Missing" in relations:
+            if "Missing" not in relations:
                 to_check_continuous = metadata["continuous_vars"]
                 to_check_binary = metadata["binary_vars"]
             else:
@@ -502,7 +511,13 @@ def _process_one_dict(col_dict, prior_data, metadata, analyzer):
                     col_dict[i] = relations[i]
             for i in to_check_binary:
                 col_dict[i] = i in relations
-    save_result(col_dict, metadata)
+
+    if lock:
+        with lock:
+            save_result(col_dict, metadata)
+    else:
+        save_result(col_dict, metadata)
+
     return col_dict
 
 

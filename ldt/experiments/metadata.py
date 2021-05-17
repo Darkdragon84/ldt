@@ -22,11 +22,13 @@ import os
 import datetime
 import abc
 import uuid
+import logging
 
 import json
 from vecto.utils.data import load_json, save_json
 
 from ldt import __version__
+from ldt.helpers.config_logger import setup_logger
 from ldt.load_config import config
 
 
@@ -42,7 +44,8 @@ class Experiment(metaclass=abc.ABCMeta):
                  output_dir=os.path.join(config["path_to_resources"],
                                          "experiments"),
                  overwrite=config["experiments"]["overwrite"],
-                 experiment_subfolder=None):
+                 experiment_subfolder=None,
+                 logger=None):
         """ Initializing an Experiment.
 
         Args:
@@ -72,6 +75,7 @@ class Experiment(metaclass=abc.ABCMeta):
             raise ValueError("Please specify experiment_name argument: a short "
                              "description of the experiment you're conducting.")
 
+        self.logger = logger if logger else setup_logger(__name__, config["experiments"]["logging"]["level"])
         self.output_dir = check_output(output_dir, experiment_subfolder,
                                        experiment_name)
         self.message = None
@@ -151,12 +155,15 @@ class Experiment(metaclass=abc.ABCMeta):
         input_data = self.find_unprocessed_files()
         self.embeddings = input_data
         if not self.embeddings:
-            print("\n", self.metadata["task"].upper(), ": no new data to process.\n")
+            self.logger.info(f"{self.metadata['task'].upper()}: no new data to process.")
+            # print("\n", self.metadata["task"].upper(), ": no new data to process.\n")
             return None
         else:
-            print("\n", self.metadata["task"].upper(), ": the following will be processed:\n", self.embeddings)
+            self.logger.info(f"{self.metadata['task'].upper()}: no new data to process.\n {self.embeddings}")
+            # print("\n", self.metadata["task"].upper(), ": the following will be processed:\n", self.embeddings)
             if self.message:
-                print(self.message)
+                self.logger.info(self.message)
+                # print(self.message)
 
     def get_results(self):
         """The basic routine for processing embeddings one-by-one, and saving
