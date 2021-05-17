@@ -29,10 +29,12 @@ from tqdm import tqdm
 
 from ldt import load_resource
 from ldt import __version__
+from ldt.helpers.config_logger import setup_logger
 from ldt.load_config import config
 from ldt.experiments.metadata import Experiment
 
 
+module_logger = setup_logger(__name__, level=config["experiments"]["logging"]["level"])
 
 class VectorNeighborhoods(Experiment):
     """This class provides a simple interface for generating top_n vector
@@ -81,15 +83,15 @@ class VectorNeighborhoods(Experiment):
         """
 
         super(VectorNeighborhoods, self).__init__(
-            experiment_name=experiment_name, extra_metadata=extra_metadata, \
+            experiment_name=experiment_name, extra_metadata=extra_metadata,
             overwrite=overwrite, embeddings=embeddings, output_dir=output_dir,
-            dataset=dataset, experiment_subfolder="neighbors")
+            dataset=dataset, experiment_subfolder="neighbors", logger=module_logger)
 
-        self.message = "\nStarting vector neighborhoods extraction." \
+        self.message = "Starting vector neighborhoods extraction." \
                        "\nIf your embeddings are not normalized, retrieving " \
                        "neighbors will take more time. By default LDT " \
                        "normalizes them on loading. If you need them not " \
-                       "normalized, use normalize=False option.\n"
+                       "normalized, use normalize=False option."
 
         self.metadata["task"] = "get_neighbors"
         self.metadata["uuid"] = str(uuid.uuid4())
@@ -153,7 +155,7 @@ class VectorNeighborhoods(Experiment):
         Returns:
             None
         """
-        print("Extracting word vector neighborhoods:", embeddings_path)
+        self.logger.info(f"Extracting word vector neighborhoods: {embeddings_path}")
 
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")

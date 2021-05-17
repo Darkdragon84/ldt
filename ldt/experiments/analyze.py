@@ -28,7 +28,10 @@ import pandas as pd
 from vecto.utils.data import load_json
 
 from ldt.experiments.metadata import Experiment
+from ldt.helpers.config_logger import setup_logger
 from ldt.load_config import config
+
+module_logger = setup_logger(__name__, level=config["experiments"]["logging"]["level"])
 
 class LDScoring(Experiment):
     """This class provides a simple interface for computing ld scores,
@@ -96,9 +99,9 @@ class LDScoring(Experiment):
         """
 
         super(LDScoring, self).__init__(
-            experiment_name=experiment_name, extra_metadata=extra_metadata, \
+            experiment_name=experiment_name, extra_metadata=extra_metadata,
             overwrite=overwrite, embeddings=None, output_dir=output_dir,
-            dataset=None, experiment_subfolder="analysis")
+            dataset=None, experiment_subfolder="analysis", logger=module_logger)
 
         self.metadata["task"] = "ld_scores_analysis"
         self.metadata["uuid"] = str(uuid.uuid4())
@@ -291,8 +294,9 @@ class LDScoring(Experiment):
                           index_label="LDScores")
             self.metadata["timestamp"] = datetime.datetime.now().isoformat()
             self.save_metadata()
-        print("\nLD analysis is finished, the embedding profiles are saved in",
-              self.output_dir, ".")
+        self.logger.info(f"LD analysis is finished, the embedding profiles are saved in {self.output_dir}.")
+        # print("\nLD analysis is finished, the embedding profiles are saved in",
+        #       self.output_dir, ".")
 
 if __name__ == '__main__':
     annotation = LDScoring(experiment_name="testing", overwrite=True)
